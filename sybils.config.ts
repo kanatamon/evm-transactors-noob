@@ -1,7 +1,7 @@
 export default {
   storage: {
-    fileName: 'sybils.xlsx',
-    sheetNames: ['Sheet1', 'Sheet2'],
+    fileName: 'database.xlsx',
+    sheetNames: ['Sheet2'],
   },
   jobs: [
     {

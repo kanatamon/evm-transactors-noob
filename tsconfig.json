@@ -9,6 +9,6 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["./src/**/*.ts", "./sybils.config.ts"],
+  "include": ["./src/**/*.ts", "./sybils.config.ts", "./prisma/**/*.ts"],
   "exclude": ["node_modules/**/*"]
 }
