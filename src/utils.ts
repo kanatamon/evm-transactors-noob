@@ -10,7 +10,6 @@ export async function availableRpc(urls: string[]) {
     try {
       const provider = new ethers.JsonRpcProvider(url);
       await provider.getBlockNumber(); // Test if the provider is working
-      console.log(`Using provider: ${url}`);
       return provider;
     } catch (error) {
       if (error instanceof Error) {

@@ -1,7 +1,7 @@
 export default {
   storage: {
     fileName: 'database.xlsx',
-    sheetNames: ['Sheet2'],
+    sheetNames: ['Sheet3', 'Sheet4'],
   },
   jobs: [
     {

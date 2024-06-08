@@ -1,9 +1,8 @@
+import cliProgress from 'cli-progress';
 import { PrismaClient } from '@prisma/client';
 import invariant from 'tiny-invariant';
 import sybilsConfig from '../sybils.config';
 import * as transactors from './transactors';
-
-const prismaClient = new PrismaClient();
 
 invariant(
   sybilsConfig.jobs.every((job) => job.name in transactors),
@@ -12,6 +11,19 @@ invariant(
   ).join(', ')}]`
 );
 
+const prismaClient = new PrismaClient();
+
+// create a new progress bar instance and use shades_classic theme
+const runningProgressBar = new cliProgress.SingleBar(
+  {},
+  cliProgress.Presets.shades_classic
+);
+
+const metrics = {
+  success: 0,
+  failed: 0,
+};
+
 async function main() {
   const sybils = await prismaClient.sybil.findMany({
     where: {
@@ -19,8 +31,10 @@ async function main() {
         in: sybilsConfig.storage.sheetNames,
       },
     },
-    take: 3,
   });
+  const jobsCount = sybils.length * sybilsConfig.jobs.length;
+  runningProgressBar.start(jobsCount, 0);
+
   const bulk = sybils.map(async ({ pk, id: sybilId }) => {
     /**
      * Problem: Array.filter() do not work with async functions.
@@ -47,8 +61,9 @@ async function main() {
         // @ts-ignore
         return transactors[job.name](pk, ...job.args);
       });
-    return Promise.allSettled(jobPromises).then((results) => {
-      results.forEach(async (result, i) => {
+    return Promise.allSettled(jobPromises).then(async (results) => {
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
         const activityName = sybilsConfig.jobs[i].name;
         if (result.status === 'fulfilled') {
           await prismaClient.activity.create({
@@ -60,6 +75,7 @@ async function main() {
               log: JSON.stringify(result.value),
             },
           });
+          metrics.success++;
         }
         if (result.status === 'rejected') {
           await prismaClient.activity.create({
@@ -71,17 +87,21 @@ async function main() {
               log: JSON.stringify(result.reason),
             },
           });
+          metrics.failed++;
         }
-      });
+        runningProgressBar.increment();
+      }
     });
   });
 
   await Promise.allSettled(bulk);
+  runningProgressBar.stop();
 }
 
 main()
   .then(() => {
-    console.log('All jobs are done.');
+    console.log(`✅ Success: \x1b[32m${metrics.success}\x1b[0m`);
+    console.log(`❌ Failed: \x1b[31m${metrics.failed}\x1b[0m`);
   })
   .finally(() => {
     prismaClient.$disconnect();
