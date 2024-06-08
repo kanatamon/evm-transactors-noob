@@ -32,10 +32,8 @@ async function main() {
       },
     },
   });
-  const jobsCount = sybils.length * sybilsConfig.jobs.length;
-  runningProgressBar.start(jobsCount, 0);
 
-  const bulk = sybils.map(async ({ pk, id: sybilId }) => {
+  const jobsBulkPromises = sybils.map(async ({ id: sybilId }) => {
     /**
      * Problem: Array.filter() do not work with async functions.
      * Solution: Use Promise.all() with Array.map() to run async functions in parallel.
@@ -58,51 +56,97 @@ async function main() {
     const jobPromises = sybilsConfig.jobs
       .filter((_, i) => toRunJobs[i])
       .map((job) => {
-        // @ts-ignore
-        return transactors[job.name](pk, ...job.args);
+        return {
+          sybilId,
+          jobName: job.name,
+          // @ts-ignore
+          txn: () => transactors[job.name](pk, ...job.args),
+        };
       });
-    return Promise.allSettled(jobPromises).then(async (results) => {
-      for (let i = 0; i < results.length; i++) {
-        const result = results[i];
-        const activityName = sybilsConfig.jobs[i].name;
-        if (result.status === 'fulfilled') {
-          await prismaClient.activity.create({
-            data: {
-              sybilId,
-              status: 'SUCCESS',
-              name: activityName,
-              timestamp: new Date(),
-              log: JSON.stringify(result.value),
-            },
-          });
-          metrics.success++;
-        }
-        if (result.status === 'rejected') {
-          await prismaClient.activity.create({
-            data: {
-              sybilId,
-              status: 'FAILED',
-              name: activityName,
-              timestamp: new Date(),
-              log: JSON.stringify(result.reason),
-            },
-          });
-          metrics.failed++;
-        }
-        runningProgressBar.increment();
-      }
-    });
-  });
 
-  await Promise.allSettled(bulk);
+    return jobPromises;
+  });
+  const jobsBulk = await Promise.all(jobsBulkPromises);
+  const jobs = jobsBulk.flat();
+
+  if (jobs.length === 0) {
+    return console.log('No jobs to run');
+  }
+  runningProgressBar.start(jobs.length, 0);
+
+  type Txn =
+    | {
+        status: 'success';
+        receipt: any;
+        sybilId: number;
+        jobName: string;
+      }
+    | {
+        status: 'failed';
+        error: any;
+        sybilId: number;
+        jobName: string;
+      };
+  const txns: Txn[] = [];
+
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i];
+    const identifier = {
+      sybilId: job.sybilId,
+      jobName: job.jobName,
+    };
+    try {
+      const receipt = await job.txn();
+      txns.push({
+        status: 'success',
+        receipt,
+        ...identifier,
+      });
+    } catch (error) {
+      txns.push({
+        status: 'failed',
+        error,
+        ...identifier,
+      });
+    } finally {
+      runningProgressBar.increment();
+    }
+  }
+
+  const results = await Promise.all(txns);
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (result.status === 'success') {
+      await prismaClient.activity.create({
+        data: {
+          sybilId: result.sybilId,
+          status: 'SUCCESS',
+          name: result.jobName,
+          timestamp: new Date(),
+          log: JSON.stringify(result.receipt),
+        },
+      });
+      metrics.success++;
+    }
+    if (result.status === 'failed') {
+      await prismaClient.activity.create({
+        data: {
+          sybilId: result.sybilId,
+          status: 'FAILED',
+          name: result.jobName,
+          timestamp: new Date(),
+          log: JSON.stringify(result.error),
+        },
+      });
+      metrics.failed++;
+    }
+  }
+
   runningProgressBar.stop();
+  console.log(`✅ Success: \x1b[32m${metrics.success}\x1b[0m`);
+  console.log(`❌ Failed: \x1b[31m${metrics.failed}\x1b[0m`);
 }
 
-main()
-  .then(() => {
-    console.log(`✅ Success: \x1b[32m${metrics.success}\x1b[0m`);
-    console.log(`❌ Failed: \x1b[31m${metrics.failed}\x1b[0m`);
-  })
-  .finally(() => {
-    prismaClient.$disconnect();
-  });
+main().finally(() => {
+  prismaClient.$disconnect();
+});
