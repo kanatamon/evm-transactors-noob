@@ -33,7 +33,7 @@ async function main() {
     },
   });
 
-  const jobsBulkPromises = sybils.map(async ({ id: sybilId }) => {
+  const jobsBulkPromises = sybils.map(async ({ pk, id: sybilId }) => {
     /**
      * Problem: Array.filter() do not work with async functions.
      * Solution: Use Promise.all() with Array.map() to run async functions in parallel.
