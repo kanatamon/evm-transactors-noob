@@ -58,3 +58,10 @@ npm run db:viewer
 
 // Go to http://localhost:5555
 ```
+
+## Export PK from phrase
+
+```bash
+// npm run wallet:export "<phrase>" <total>
+npm run wallet:export "test test test test test test test test test test test junk" 10
+```

@@ -11,7 +11,8 @@
     "db:sync": "tsx prisma/syncActivity.ts",
     "db:seed": "prisma db seed",
     "db:init": "prisma db push && npm run db:seed",
-    "db:ts": "prisma generate"
+    "db:ts": "prisma generate",
+    "wallet:export": "tsx src/tools/wallets.ts"
   },
   "keywords": [],
   "author": "",
