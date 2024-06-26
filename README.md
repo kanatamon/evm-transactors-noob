@@ -65,3 +65,9 @@ npm run db:viewer
 // npm run wallet:export "<phrase>" <total>
 npm run wallet:export "test test test test test test test test test test test junk" 10
 ```
+
+## Make trx on Taiko
+
+```bash
+npm run trx:taiko <private-key> <total>
+```

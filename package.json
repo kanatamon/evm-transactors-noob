@@ -12,7 +12,8 @@
     "db:seed": "prisma db seed",
     "db:init": "prisma db push && npm run db:seed",
     "db:ts": "prisma generate",
-    "wallet:export": "tsx src/tools/wallets.ts"
+    "wallet:export": "tsx src/tools/wallets.ts",
+    "trx:taiko": "tsx src/tools/makeTrxOnTaiko.ts"
   },
   "keywords": [],
   "author": "",
